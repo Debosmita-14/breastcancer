@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { Upload, FileText, Brain, AlertCircle, CheckCircle, Activity, Download, X, ClipboardList, RefreshCw, Copy } from 'lucide-react';
+import { Upload, FileText, Brain, AlertCircle, CheckCircle, Activity, Download, X, ClipboardList, RefreshCw, Copy, LogOut, Loader2, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,8 +14,17 @@ import { analyzeMammogramAction, analyzeStructuredDataAction, generateReportActi
 import type { PredictMalignancyStructuredDataInput, PredictMalignancyStructuredDataOutput } from '@/ai/flows/ai-predict-malignancy-structured-data';
 import type { AIGenerateDiagnosticReportInput } from '@/ai/flows/ai-generate-diagnostic-report-flow';
 
+// Firebase imports
+import { useUser, useFirebase } from '@/firebase';
+import { initiateAnonymousSignIn, initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
+import { signOut } from 'firebase/auth';
+import { collection, query, getDocs, limit, serverTimestamp, doc } from 'firebase/firestore';
+import { addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+
+
 type Step = 'upload' | 'analyzing' | 'results';
 type InputType = 'mammogram' | 'clinical' | 'pathology';
+type AuthView = 'login' | 'signup';
 
 type FormData = {
   age: string;
@@ -57,6 +66,9 @@ const initialFormData: FormData = {
 };
 
 export default function BreastCancerDetector() {
+  const { user, isUserLoading } = useUser();
+  const { auth, firestore } = useFirebase();
+
   const [step, setStep] = useState<Step>('upload');
   const [inputType, setInputType] = useState<InputType>('mammogram');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -65,6 +77,15 @@ export default function BreastCancerDetector() {
   const [report, setReport] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  // Auth state
+  const [authView, setAuthView] = useState<AuthView>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+
+  // Patient state
+  const [patientId, setPatientId] = useState<string | null>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,6 +116,10 @@ export default function BreastCancerDetector() {
   };
   
   const analyzeData = async () => {
+    if (!user) {
+        toast({ variant: 'destructive', title: 'Authentication Required', description: 'You must be logged in to perform an analysis.' });
+        return;
+    }
     setLoading(true);
     setStep('analyzing');
 
@@ -133,6 +158,10 @@ export default function BreastCancerDetector() {
       
       const generatedReport = await generateReportAction(reportInput);
       setReport(generatedReport);
+      
+      // Save results to Firestore
+      await saveAnalysisToFirestore(currentResults, generatedReport);
+
       setStep('results');
     } catch (error) {
       console.error(error);
@@ -140,6 +169,78 @@ export default function BreastCancerDetector() {
       setStep('upload');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveAnalysisToFirestore = async (analysisResults: Results, reportContent: string) => {
+    if (!user || !firestore) return;
+
+    try {
+        // Step 1: Find or create a patient
+        let currentPatientId = patientId;
+        if (!currentPatientId) {
+            const patientCollectionRef = collection(firestore, 'users', user.uid, 'patients');
+            const q = query(patientCollectionRef, limit(1));
+            const patientSnapshot = await getDocs(q);
+
+            if (patientSnapshot.empty) {
+                // Create a new patient
+                const newPatientData = {
+                    externalUserId: user.uid,
+                    name: user.email || user.uid,
+                    dateOfBirth: '1970-01-01',
+                    gender: 'Unknown',
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                };
+                const patientRef = await addDocumentNonBlocking(patientCollectionRef, newPatientData);
+                if (!patientRef) throw new Error("Failed to create patient record.");
+                currentPatientId = patientRef.id;
+            } else {
+                currentPatientId = patientSnapshot.docs[0].id;
+            }
+            setPatientId(currentPatientId);
+        }
+
+        if (!currentPatientId) throw new Error("Patient ID could not be determined.");
+
+        // Step 2: Create AnalysisSession
+        const analysisSessionCollectionRef = collection(firestore, 'users', user.uid, 'patients', currentPatientId, 'analysisSessions');
+        const analysisSessionData = {
+            ownerId: user.uid,
+            patientId: currentPatientId,
+            analysisDate: serverTimestamp(),
+            inputType: analysisResults.inputType,
+            prediction: analysisResults.prediction,
+            confidence: analysisResults.confidence,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
+        const analysisSessionRef = await addDocumentNonBlocking(analysisSessionCollectionRef, analysisSessionData);
+        if (!analysisSessionRef) throw new Error("Failed to save analysis session.");
+
+        // Step 3: Create DiagnosticReport
+        const reportCollectionRef = collection(analysisSessionRef, 'diagnosticReport');
+        const reportData = {
+            ownerId: user.uid,
+            patientId: currentPatientId,
+            analysisSessionId: analysisSessionRef.id,
+            reportContent,
+            reportGeneratedDate: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
+        const reportRef = await addDocumentNonBlocking(reportCollectionRef, reportData);
+        if (!reportRef) throw new Error("Failed to save diagnostic report.");
+        
+        // Step 4: Update AnalysisSession with report ID
+        updateDocumentNonBlocking(doc(analysisSessionCollectionRef, analysisSessionRef.id), { diagnosticReportId: reportRef.id });
+
+        toast({ title: 'Analysis Saved', description: 'Your analysis results have been saved to your records.' });
+
+    } catch (error) {
+        console.error("Error saving analysis to Firestore:", error);
+        toast({ variant: 'destructive', title: 'Save Failed', description: error instanceof Error ? error.message : 'Could not save results to database.' });
     }
   };
 
@@ -178,6 +279,107 @@ export default function BreastCancerDetector() {
   const copyReport = () => {
     navigator.clipboard.writeText(report);
     toast({ title: "Report Copied to Clipboard" });
+  }
+
+  // Auth handlers
+  const handleAuthAction = async () => {
+    if (!email || !password) {
+        toast({ variant: 'destructive', title: 'Missing fields', description: 'Please enter both email and password.' });
+        return;
+    }
+    setIsAuthLoading(true);
+    try {
+        if (authView === 'login') {
+            initiateEmailSignIn(auth, email, password);
+        } else {
+            initiateEmailSignUp(auth, email, password);
+        }
+        // onAuthStateChanged will handle the rest
+    } catch (error) {
+        console.error(error);
+        toast({ variant: 'destructive', title: 'Authentication Failed', description: error instanceof Error ? error.message : 'An unknown error occurred.' });
+    } finally {
+        setIsAuthLoading(false);
+    }
+  };
+
+  const handleAnonymousSignIn = async () => {
+    setIsAuthLoading(true);
+    try {
+        initiateAnonymousSignIn(auth);
+    } catch (error) {
+        console.error(error);
+        toast({ variant: 'destructive', title: 'Authentication Failed', description: error instanceof Error ? error.message : 'An unknown error occurred.' });
+    } finally {
+        setIsAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+    setPatientId(null);
+    resetApp();
+  };
+
+  if (isUserLoading) {
+      return (
+          <div className="flex h-screen w-full items-center justify-center">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+      );
+  }
+
+  if (!user) {
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+            <Card className="w-full max-w-md shadow-xl">
+                <CardHeader>
+                    <CardTitle className="text-center text-2xl font-bold">
+                        Welcome to Insight Breast AI
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {authView === 'signup' && (
+                            <p className="text-center text-sm text-muted-foreground">
+                                Create an account to save and track your analyses.
+                            </p>
+                        )}
+                         <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isAuthLoading} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="password">Password</Label>
+                            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isAuthLoading} />
+                        </div>
+                        <Button onClick={handleAuthAction} className="w-full" disabled={isAuthLoading}>
+                            {isAuthLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {authView === 'login' ? 'Log In' : 'Sign Up'}
+                        </Button>
+                        <div className="relative">
+                           <div className="absolute inset-0 flex items-center">
+                               <span className="w-full border-t" />
+                           </div>
+                           <div className="relative flex justify-center text-xs uppercase">
+                               <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                           </div>
+                        </div>
+                        <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn} disabled={isAuthLoading}>
+                            {isAuthLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserIcon className="mr-2 h-4 w-4" />}
+                            Anonymous Sign-In
+                        </Button>
+                    </div>
+                    <div className="mt-4 text-center text-sm">
+                        {authView === 'login' ? "Don't have an account?" : "Already have an account?"}
+                        <Button variant="link" onClick={() => setAuthView(authView === 'login' ? 'signup' : 'login')} className="px-1">
+                            {authView === 'login' ? 'Sign up' : 'Log in'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
   }
 
   const renderUploadStep = () => (
@@ -260,7 +462,7 @@ export default function BreastCancerDetector() {
                 <div key={field.key} className="space-y-2">
                   <Label htmlFor={field.key}>{field.label}</Label>
                   {field.type === 'select' ? (
-                    <Select onValueChange={(value) => handleInputChange(field.key, value)} value={formData[field.key]}>
+                    <Select onValueChange={(value) => handleInputChange(field.key, value as 'no' | 'yes')} value={formData[field.key]}>
                       <SelectTrigger id={field.key}><SelectValue placeholder="Select..." /></SelectTrigger>
                       <SelectContent>
                         {field.options.map(opt => <SelectItem key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</SelectItem>)}
@@ -279,7 +481,7 @@ export default function BreastCancerDetector() {
               {pathologyFeatures.map(feature => (
                 <div key={feature.key} className="space-y-2">
                   <Label htmlFor={feature.key}>{feature.label} {feature.unit && `(${feature.unit})`}</Label>
-                  <Input id={feature.key} type="number" step="any" value={formData[feature.key]} onChange={(e) => handleInputChange(feature.key, e.target.value)} placeholder={`Range: ${feature.range}`} />
+                  <Input id={feature.key} type="number" step="any" value={formData[feature.key as keyof FormData]} onChange={(e) => handleInputChange(feature.key as keyof FormData, e.target.value)} placeholder={`Range: ${feature.range}`} />
                 </div>
               ))}
             </div>
@@ -376,14 +578,20 @@ export default function BreastCancerDetector() {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="bg-card rounded-2xl shadow-xl p-6 md:p-8 mb-6 border-t-4 border-primary">
-        <div className="flex items-center gap-4">
-          <div className="bg-primary/10 p-3 rounded-xl">
-            <Activity className="w-8 h-8 text-primary" />
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="bg-primary/10 p-3 rounded-xl">
+              <Activity className="w-8 h-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Insight Breast AI</h1>
+              <p className="text-muted-foreground mt-1">Multi-Modal Analysis with AI-Powered Insights</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Insight Breast AI</h1>
-            <p className="text-muted-foreground mt-1">Multi-Modal Analysis with AI-Powered Insights</p>
-          </div>
+          <Button onClick={handleSignOut} variant="outline">
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+          </Button>
         </div>
       </div>
       
