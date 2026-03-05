@@ -26,7 +26,8 @@ export async function analyzeMammogramAction(
     return result;
   } catch (error) {
     console.error("Error in analyzeMammogramAction:", error);
-    throw new Error('Failed to analyze the mammogram image.');
+    const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+    throw new Error(`Failed to analyze the mammogram image: ${message}`);
   }
 }
 
@@ -38,7 +39,8 @@ export async function analyzeStructuredDataAction(
     return result;
   } catch (error) {
     console.error("Error in analyzeStructuredDataAction:", error);
-    throw new Error('Failed to analyze the provided data.');
+    const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+    throw new Error(`Failed to analyze the provided data: ${message}`);
   }
 }
 
