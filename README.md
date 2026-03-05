@@ -1,104 +1,112 @@
-🩺 AI-Based Breast Cancer Detection Web Application
-📌 Project Overview
+# 🩺 AI-Based Breast Cancer Detection Web Application
 
-This project is a web-based AI application for breast cancer detection that allows users to upload medical images and receive predictions using machine learning models. The system aims to assist in early detection of breast cancer, which can significantly improve treatment outcomes.
+## 📌 Project Overview
+This project is a **web-based AI application for breast cancer detection** that allows users to upload medical images and receive predictions using a machine learning model. The goal of this system is to assist in **early detection of breast cancer**, which can help improve treatment outcomes.
 
-The application provides a simple and user-friendly interface where users can upload images, and the AI model analyzes them to determine whether the tumor is benign or malignant.
+The application provides a **simple and user-friendly interface** where users can upload images and the AI model analyzes them to determine whether the tumor is **Benign or Malignant**.
 
-🔗 Live Website: https://breastcancer-chi.vercel.app/
+🔗 **Live Website:**  
+https://breastcancer-chi.vercel.app/
 
-🚀 Features
+---
 
-🧠 AI-Based Prediction for breast cancer detection
+## 🚀 Features
+- 🧠 AI-based breast cancer prediction
+- 🖼 Upload medical images for analysis
+- 📊 Classification results (Benign / Malignant)
+- 🌐 Responsive and easy-to-use interface
+- ⚡ Fast deployment using Vercel
+- 🧑‍⚕️ Supports early screening assistance
 
-🖼 Medical Image Upload for analysis
+---
 
-📊 Classification Results (Benign / Malignant)
+## 🏗️ Tech Stack
 
-🌐 Responsive Web Interface
+### Frontend
+- HTML
+- CSS
+- JavaScript
+- React
 
-⚡ Fast Deployment using Vercel
+### Backend / AI
+- Python
+- Machine Learning / Deep Learning
+- Image Processing
 
-🧑‍⚕️ Supports early screening assistance
+### Deployment
+- Vercel
 
-🏗️ Tech Stack
-Frontend
+---
 
-HTML
+## 📂 Project Structure
 
-CSS
-
-JavaScript
-
-React (if used)
-
-Tailwind / Bootstrap (if used)
-
-Backend / AI
-
-Python
-
-Machine Learning / Deep Learning Models
-
-Image Processing
-
-Deployment
-
-Vercel
-
-📂 Project Structure
+```
 breast-cancer-detection/
 │
 ├── public/                # Static files
 ├── src/
 │   ├── components/        # UI components
-│   ├── pages/             # Web pages
+│   ├── pages/             # Application pages
 │   ├── assets/            # Images and resources
 │   └── App.js             # Main application file
 │
 ├── model/                 # AI model files
 ├── package.json           # Dependencies
 └── README.md              # Project documentation
+```
 
-⚙️ Installation and Setup
-1️⃣ Clone the Repository
+---
+
+## ⚙️ Installation and Setup
+
+### 1️⃣ Clone the Repository
+```bash
 git clone https://github.com/yourusername/breast-cancer-detection.git
-2️⃣ Navigate to the Project
+```
+
+### 2️⃣ Navigate to the Project Folder
+```bash
 cd breast-cancer-detection
-3️⃣ Install Dependencies
+```
+
+### 3️⃣ Install Dependencies
+```bash
 npm install
-4️⃣ Run the Project
+```
+
+### 4️⃣ Run the Project
+```bash
 npm start
+```
 
-📊 Dataset Used
-
+## 📊 Dataset Used
 The AI model may be trained using publicly available breast cancer datasets such as:
 
-BUSI (Breast Ultrasound Images Dataset)
+- BUSI (Breast Ultrasound Images Dataset)
+- MIAS (Mammographic Image Analysis Society)
+- BreakHis Dataset
+- DDSM Dataset
+- BreastDM Dataset
 
-MIAS (Mammographic Image Analysis Society)
+These datasets help train the model to classify tumors accurately.
 
-BreakHis Dataset
+---
 
-DDSM Dataset
+## 🧠 How the System Works
+1. The user uploads a medical image.
+2. The system preprocesses the image.
+3. The trained AI model analyzes the image.
+4. The model predicts whether the tumor is **Benign or Malignant**.
+5. The result is displayed on the web interface.
 
-BreastDM Dataset
+---
 
-These datasets help train the model for accurate tumor classification.
+## ⚠️ Disclaimer
+This project is developed **for educational and research purposes only**.  
+It should **not be used as a substitute for professional medical diagnosis**.
 
-🧠 How the System Works
+---
 
-User uploads a medical image.
-
-The system preprocesses the image.
-
-The trained AI model analyzes the image.
-
-The model predicts whether the tumor is benign or malignant.
-
-The result is displayed on the web interface.
-
-⚠️ Disclaimer
-
-This application is developed for educational and research purposes only.
-It should not be used as a substitute for professional medical diagnosis.
+## 👨‍💻 Author
+Debosmita Banerjee 
+B.Tech Student
