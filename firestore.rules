@@ -1,0 +1,198 @@
+/**
+ * Core Philosophy: This ruleset implements a strict, hierarchical user-ownership model. All application data, including patient records, analysis sessions, and reports, is siloed within a private data tree specific to each authenticated user. Access is granted exclusively based on the user's authenticated ID matching the corresponding `{userId}` segment in the document path.
+ *
+ * Data Structure: The entire data model is nested under the `/users/{userId}` path. This top-level path contains a `patients` subcollection, which in turn contains `analysisSessions` subcollections. All detailed inputs and reports for an analysis are then nested under their respective `analysisSession` document.
+ *
+ * Key Security Decisions:
+ * - Default Deny: All paths not explicitly defined in these rules are inaccessible. There is no public access to any data.
+ * - No User Listing: The top-level `/users` collection is not readable, preventing any possibility of enumerating the application's users.
+ * - Strict Ownership: A user can only access documents located within their own data tree (i.e., where the path's `{userId}` matches their `request.auth.uid`). There is no concept of shared or collaborative access.
+ *
+ * Denormalization for Authorization: To ensure fast and simple authorization checks, ownership and relational IDs are denormalized onto documents. The `Patient` document contains an `externalUserId` field that must match the `{userId}` in the path. All subsequent child documents (e.g., `AnalysisSession`, `DiagnosticReport`) are expected to contain a denormalized `ownerId` (the user's ID) and any relevant parent IDs (e.g., `patientId`). This strategy eliminates the need for slow and costly `get()` calls in security rules, making access control highly performant.
+ *
+ * Structural Segregation: The data architecture naturally enforces security boundaries. Since all data is private and user-owned, there is no mixing of public and private content within the same collection, which simplifies rule logic and enhances security for list operations.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for improved readability and reusability.
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Verifies that the currently authenticated user's UID matches the
+     * document owner's UID specified in the path.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Verifies ownership for an existing document. Used for update and delete
+     * operations to prevent acting on non-existent data.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * On create, validates that the Patient's internal ownership field
+     * (`externalUserId`) matches the path-defined owner.
+     */
+    function hasValidPatientDataOnCreate(userId) {
+      return request.resource.data.externalUserId == userId;
+    }
+
+    /**
+     * On update, ensures the Patient's core ownership field is immutable.
+     */
+    function isPatientDataImmutable() {
+      return request.resource.data.externalUserId == resource.data.externalUserId;
+    }
+
+    /**
+     * On create, validates that an AnalysisSession's internal ownership and
+     * parent reference fields match the path.
+     * NOTE: Assumes a denormalized `ownerId` field exists on the document.
+     */
+    function hasValidAnalysisSessionDataOnCreate(userId, patientId) {
+      return request.resource.data.ownerId == userId
+        && request.resource.data.patientId == patientId;
+    }
+
+    /**
+     * On update, ensures an AnalysisSession's ownership and parent links are immutable.
+     * NOTE: Assumes a denormalized `ownerId` field exists on the document.
+     */
+    function isAnalysisSessionDataImmutable() { // Removed unused 'patientId' parameter
+      return request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.patientId == resource.data.patientId;
+    }
+
+    /**
+     * On create, validates that a nested input/report document's internal
+     * ownership and parent reference fields match the path.
+     * NOTE: Assumes denormalized `ownerId` and `patientId` fields exist.
+     */
+    function hasValidSubSessionDataOnCreate(userId, patientId, analysisSessionId) {
+      return request.resource.data.ownerId == userId
+        && request.resource.data.patientId == patientId
+        && request.resource.data.analysisSessionId == analysisSessionId;
+    }
+
+    /**
+     * On update, ensures a nested input/report document's ownership and
+     * parent links are immutable.
+     * NOTE: Assumes denormalized `ownerId` and `patientId` fields exist.
+     */
+    function isSubSessionDataImmutable() { // Removed unused 'patientId' and 'analysisSessionId' parameters
+      return request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.patientId == resource.data.patientId
+        && request.resource.data.analysisSessionId == resource.data.analysisSessionId;
+    }
+
+    /**
+     * @description Rules for a user's private patient records.
+     * @path /users/{userId}/patients/{patientId}
+     * @allow (create) An authenticated user can create a patient record for themselves, correctly setting the ownership field.
+     * @deny (create) An authenticated user tries to create a patient record under another user's ID.
+     * @principle Restricts access to a user's own data tree and validates relational integrity.
+     */
+    match /users/{userId}/patients/{patientId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasValidPatientDataOnCreate(userId);
+      allow update: if isExistingOwner(userId) && isPatientDataImmutable();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for AI analysis sessions belonging to a specific patient.
+     * @path /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}
+     * @allow (get) The owner of the patient can read an analysis session.
+     * @deny (list) An authenticated user tries to list sessions for a patient they do not own.
+     * @principle Enforces hierarchical ownership and validates denormalized parent IDs for data consistency.
+     */
+    match /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasValidAnalysisSessionDataOnCreate(userId, patientId);
+      allow update: if isExistingOwner(userId) && isAnalysisSessionDataImmutable(); // Updated call
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for mammogram inputs associated with an analysis session.
+     * @path /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/mammogramInput/{mammogramInputId}
+     * @allow (create) The data owner can create a mammogram input record linked to the correct session, patient, and owner.
+     * @deny (update) A user tries to re-assign an existing record to a different analysis session.
+     * @principle Enforces deep hierarchical ownership and ensures relational fields are immutable.
+     */
+    match /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/mammogramInput/{mammogramInputId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasValidSubSessionDataOnCreate(userId, patientId, analysisSessionId);
+      allow update: if isExistingOwner(userId) && isSubSessionDataImmutable(); // Updated call
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for clinical inputs associated with an analysis session.
+     * @path /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/clinicalInput/{clinicalInputId}
+     * @allow (delete) The data owner can delete a clinical input record they created.
+     * @deny (get) A user tries to read a clinical input record belonging to another user.
+     * @principle Enforces deep hierarchical ownership and ensures relational fields are immutable.
+     */
+    match /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/clinicalInput/{clinicalInputId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasValidSubSessionDataOnCreate(userId, patientId, analysisSessionId);
+      allow update: if isExistingOwner(userId) && isSubSessionDataImmutable(); // Updated call
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for pathology inputs associated with an analysis session.
+     * @path /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/pathologyInput/{pathologyInputId}
+     * @allow (list) The data owner can list all pathology inputs for one of their analysis sessions.
+     * @deny (create) The data owner tries to create a pathology input record with a mismatched `analysisSessionId`.
+     * @principle Enforces deep hierarchical ownership and ensures relational fields are immutable.
+     */
+    match /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/pathologyInput/{pathologyInputId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasValidSubSessionDataOnCreate(userId, patientId, analysisSessionId);
+      allow update: if isExistingOwner(userId) && isSubSessionDataImmutable(); // Updated call
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for feature importance details associated with an analysis session.
+     * @path /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/featureImportanceDetails/{featureImportanceDetailId}
+     * @allow (get) The data owner can read a feature importance detail record.
+     * @deny (list) An anonymous user tries to list feature importance details.
+     * @principle Enforces deep hierarchical ownership and ensures relational fields are immutable.
+     */
+    match /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/featureImportanceDetails/{featureImportanceDetailId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasValidSubSessionDataOnCreate(userId, patientId, analysisSessionId);
+      allow update: if isExistingOwner(userId) && isSubSessionDataImmutable(); // Updated call
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for diagnostic reports associated with an analysis session.
+     * @path /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/diagnosticReport/{diagnosticReportId}
+     * @allow (update) The data owner can update their own diagnostic report.
+     * @deny (delete) A user tries to delete a report belonging to another user, even if they know the path.
+     * @principle Enforces deep hierarchical ownership and ensures relational fields are immutable.
+     */
+    match /users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/diagnosticReport/{diagnosticReportId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasValidSubSessionDataOnCreate(userId, patientId, analysisSessionId);
+      allow update: if isExistingOwner(userId) && isSubSessionDataImmutable(); // Updated call
+      allow delete: if isExistingOwner(userId);
+    }
+  }
+}

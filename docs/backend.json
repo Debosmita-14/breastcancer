@@ -1,0 +1,574 @@
+{
+  "entities": {
+    "Patient": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Patient",
+      "type": "object",
+      "description": "Represents an individual patient whose medical data is being analyzed. This entity stores basic demographic and administrative information for a patient.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Patient entity."
+        },
+        "externalUserId": {
+          "type": "string",
+          "description": "Reference to the unique identifier of the user from the external authentication system who manages this patient's records. (Relationship: User 1:N Patient)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The patient's name or a pseudonym/identifier for privacy."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "The patient's date of birth.",
+          "format": "date"
+        },
+        "gender": {
+          "type": "string",
+          "description": "The patient's biological gender (e.g., 'Male', 'Female', 'Other', 'Unknown')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the patient record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the patient record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "externalUserId",
+        "name",
+        "dateOfBirth",
+        "gender",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AnalysisSession": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AnalysisSession",
+      "type": "object",
+      "description": "Represents a single instance of a breast cancer AI analysis performed for a specific patient, summarizing the high-level outcome.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AnalysisSession entity."
+        },
+        "patientId": {
+          "type": "string",
+          "description": "Reference to the Patient for whom this analysis was conducted. (Relationship: Patient 1:N AnalysisSession)"
+        },
+        "analysisDate": {
+          "type": "string",
+          "description": "The date and time when the AI analysis was performed.",
+          "format": "date-time"
+        },
+        "inputType": {
+          "type": "string",
+          "description": "The type of data used as input for this analysis session.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prediction": {
+          "type": "string",
+          "description": "The AI's final prediction for malignancy (e.g., 'Benign', 'Malignant').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "description": "The confidence score of the AI's prediction, a value between 0 and 1."
+        },
+        "diagnosticReportId": {
+          "type": "string",
+          "description": "Reference to the DiagnosticReport generated for this analysis session. (Relationship: AnalysisSession 1:1 DiagnosticReport)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the analysis session record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the analysis session record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "patientId",
+        "analysisDate",
+        "inputType",
+        "prediction",
+        "confidence",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MammogramInput": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MammogramInput",
+      "type": "object",
+      "description": "Stores details related to a mammogram image used as input for an AI analysis session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MammogramInput entity."
+        },
+        "analysisSessionId": {
+          "type": "string",
+          "description": "Reference to the AnalysisSession this mammogram image belongs to. (Relationship: AnalysisSession 1:1 MammogramInput)"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL or reference to where the uploaded mammogram image is stored.",
+          "format": "uri"
+        },
+        "imageValidationStatus": {
+          "type": "string",
+          "description": "The status of the CNN image validation (e.g., 'Valid', 'Invalid', 'Pending').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "imageValidationDetails": {
+          "type": "string",
+          "description": "Additional details or reasons if the image validation failed (e.g., 'Not grayscale', 'Low variance')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the mammogram input record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the mammogram input record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "analysisSessionId",
+        "imageUrl",
+        "imageValidationStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ClinicalInput": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ClinicalInput",
+      "type": "object",
+      "description": "Stores the clinical data provided as input for an AI analysis session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ClinicalInput entity."
+        },
+        "analysisSessionId": {
+          "type": "string",
+          "description": "Reference to the AnalysisSession this clinical data belongs to. (Relationship: AnalysisSession 1:1 ClinicalInput)"
+        },
+        "age": {
+          "type": "number",
+          "description": "The patient's age at the time of the analysis."
+        },
+        "tumorSize": {
+          "type": "number",
+          "description": "The size of the tumor in millimeters (mm)."
+        },
+        "familyHistory": {
+          "type": "boolean",
+          "description": "Indicates if there is a family history of breast cancer (true for 'yes', false for 'no')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the clinical input record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the clinical input record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "analysisSessionId",
+        "age",
+        "tumorSize",
+        "familyHistory",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PathologyInput": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PathologyInput",
+      "type": "object",
+      "description": "Stores the pathology measurements provided as input for an AI analysis session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PathologyInput entity."
+        },
+        "analysisSessionId": {
+          "type": "string",
+          "description": "Reference to the AnalysisSession this pathology data belongs to. (Relationship: AnalysisSession 1:1 PathologyInput)"
+        },
+        "radius": {
+          "type": "number",
+          "description": "The mean radius of the tumor cells."
+        },
+        "texture": {
+          "type": "number",
+          "description": "The mean texture of the tumor cells."
+        },
+        "perimeter": {
+          "type": "number",
+          "description": "The mean perimeter of the tumor cells."
+        },
+        "area": {
+          "type": "number",
+          "description": "The mean area of the tumor cells."
+        },
+        "smoothness": {
+          "type": "number",
+          "description": "The mean smoothness of the tumor cells."
+        },
+        "compactness": {
+          "type": "number",
+          "description": "The mean compactness of the tumor cells."
+        },
+        "concavity": {
+          "type": "number",
+          "description": "The mean concavity of the tumor cells."
+        },
+        "symmetry": {
+          "type": "number",
+          "description": "The mean symmetry of the tumor cells."
+        },
+        "fractalDimension": {
+          "type": "number",
+          "description": "The mean fractal dimension of the tumor cells."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the pathology input record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the pathology input record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "analysisSessionId",
+        "radius",
+        "texture",
+        "perimeter",
+        "area",
+        "smoothness",
+        "compactness",
+        "concavity",
+        "symmetry",
+        "fractalDimension",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "FeatureImportanceDetail": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FeatureImportanceDetail",
+      "type": "object",
+      "description": "Stores individual feature importance scores and values for a specific AI analysis session, indicating what factors influenced the prediction.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FeatureImportanceDetail entity."
+        },
+        "analysisSessionId": {
+          "type": "string",
+          "description": "Reference to the AnalysisSession this feature importance detail belongs to. (Relationship: AnalysisSession 1:N FeatureImportanceDetail)"
+        },
+        "featureName": {
+          "type": "string",
+          "description": "The name of the feature (e.g., 'Tumor Size', 'Mean Radius', 'Mass Density')."
+        },
+        "featureValue": {
+          "type": "string",
+          "description": "The value of the feature for this specific analysis (e.g., '32 mm', '12.5', 'Clustered'). Stored as string to accommodate various data types."
+        },
+        "importanceScore": {
+          "type": "number",
+          "description": "The normalized importance score of this feature in the AI's prediction, a value between 0 and 1."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the feature importance record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the feature importance record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "analysisSessionId",
+        "featureName",
+        "featureValue",
+        "importanceScore",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DiagnosticReport": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DiagnosticReport",
+      "type": "object",
+      "description": "Stores the comprehensive, AI-generated professional diagnostic report for an analysis session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the DiagnosticReport entity."
+        },
+        "analysisSessionId": {
+          "type": "string",
+          "description": "Reference to the AnalysisSession this report belongs to. (Relationship: AnalysisSession 1:1 DiagnosticReport)"
+        },
+        "reportContent": {
+          "type": "string",
+          "description": "The full text content of the AI-generated diagnostic report."
+        },
+        "reportGeneratedDate": {
+          "type": "string",
+          "description": "The date and time when this report was generated.",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the diagnostic report record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the diagnostic report record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "analysisSessionId",
+        "reportContent",
+        "reportGeneratedDate",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}/patients/{patientId}",
+        "definition": {
+          "entityName": "Patient",
+          "schema": {
+            "$ref": "#/backend/entities/Patient"
+          },
+          "description": "Stores patient records, with each patient explicitly linked to an `externalUserId` (the authenticated user's ID) as its owner. This `externalUserId` is also the `{userId}` in the path for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this patient record."
+            },
+            {
+              "name": "patientId",
+              "description": "The unique identifier for the patient."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}",
+        "definition": {
+          "entityName": "AnalysisSession",
+          "schema": {
+            "$ref": "#/backend/entities/AnalysisSession"
+          },
+          "description": "Stores AI analysis sessions for a specific patient. Includes denormalized `ownerId` (the user's ID) and `patientId` for authorization independence and efficient querying, ensuring rules do not need `get()` calls.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this analysis session."
+            },
+            {
+              "name": "patientId",
+              "description": "The unique identifier of the patient associated with this analysis session."
+            },
+            {
+              "name": "analysisSessionId",
+              "description": "The unique identifier for the analysis session."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/mammogramInput/{mammogramInputId}",
+        "definition": {
+          "entityName": "MammogramInput",
+          "schema": {
+            "$ref": "#/backend/entities/MammogramInput"
+          },
+          "description": "Stores mammogram input details for an analysis session. Includes denormalized `ownerId` (the user's ID), `patientId`, and `analysisSessionId` for authorization independence, allowing direct rule evaluation without parent lookups.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this mammogram input record."
+            },
+            {
+              "name": "patientId",
+              "description": "The unique identifier of the patient associated with this mammogram input record."
+            },
+            {
+              "name": "analysisSessionId",
+              "description": "The unique identifier of the analysis session this mammogram input belongs to."
+            },
+            {
+              "name": "mammogramInputId",
+              "description": "The unique identifier for the mammogram input."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/clinicalInput/{clinicalInputId}",
+        "definition": {
+          "entityName": "ClinicalInput",
+          "schema": {
+            "$ref": "#/backend/entities/ClinicalInput"
+          },
+          "description": "Stores clinical input details for an analysis session. Includes denormalized `ownerId` (the user's ID), `patientId`, and `analysisSessionId` for authorization independence, allowing direct rule evaluation without parent lookups.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this clinical input record."
+            },
+            {
+              "name": "patientId",
+              "description": "The unique identifier of the patient associated with this clinical input record."
+            },
+            {
+              "name": "analysisSessionId",
+              "description": "The unique identifier of the analysis session this clinical input belongs to."
+            },
+            {
+              "name": "clinicalInputId",
+              "description": "The unique identifier for the clinical input."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/pathologyInput/{pathologyInputId}",
+        "definition": {
+          "entityName": "PathologyInput",
+          "schema": {
+            "$ref": "#/backend/entities/PathologyInput"
+          },
+          "description": "Stores pathology input details for an analysis session. Includes denormalized `ownerId` (the user's ID), `patientId`, and `analysisSessionId` for authorization independence, allowing direct rule evaluation without parent lookups.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this pathology input record."
+            },
+            {
+              "name": "patientId",
+              "description": "The unique identifier of the patient associated with this pathology input record."
+            },
+            {
+              "name": "analysisSessionId",
+              "description": "The unique identifier of the analysis session this pathology input belongs to."
+            },
+            {
+              "name": "pathologyInputId",
+              "description": "The unique identifier for the pathology input."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/featureImportanceDetails/{featureImportanceDetailId}",
+        "definition": {
+          "entityName": "FeatureImportanceDetail",
+          "schema": {
+            "$ref": "#/backend/entities/FeatureImportanceDetail"
+          },
+          "description": "Stores individual feature importance scores for an analysis session. Includes denormalized `ownerId` (the user's ID), `patientId`, and `analysisSessionId` for authorization independence, simplifying security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this feature importance detail."
+            },
+            {
+              "name": "patientId",
+              "description": "The unique identifier of the patient associated with this feature importance detail."
+            },
+            {
+              "name": "analysisSessionId",
+              "description": "The unique identifier of the analysis session this feature importance detail belongs to."
+            },
+            {
+              "name": "featureImportanceDetailId",
+              "description": "The unique identifier for the feature importance detail."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/patients/{patientId}/analysisSessions/{analysisSessionId}/diagnosticReport/{diagnosticReportId}",
+        "definition": {
+          "entityName": "DiagnosticReport",
+          "schema": {
+            "$ref": "#/backend/entities/DiagnosticReport"
+          },
+          "description": "Stores the AI-generated diagnostic report for an analysis session. Includes denormalized `ownerId` (the user's ID), `patientId`, and `analysisSessionId` for authorization independence, ensuring robust and simple security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this diagnostic report."
+            },
+            {
+              "name": "patientId",
+              "description": "The unique identifier of the patient associated with this diagnostic report."
+            },
+            {
+              "name": "analysisSessionId",
+              "description": "The unique identifier of the analysis session this diagnostic report belongs to."
+            },
+            {
+              "name": "diagnosticReportId",
+              "description": "The unique identifier for the diagnostic report."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed following a strictly hierarchical, path-based ownership model, starting with individual users. All data for patients and their associated analysis and reports are nested under the authenticated user's ID. This directly addresses **Authorization Independence** and **Clarity of Intent** by ensuring that every document's ownership can be verified directly from its path and/or a denormalized `ownerId` field within the document.\n\nSpecifically, the `Patient` entity, which represents the highest level of user-owned application data, resides under `/users/{userId}/patients/{patientId}`. The `Patient` document's `externalUserId` field explicitly identifies its owner, matching the `{userId}` wildcard in its path. This is a core denormalization for the `Patient` entity.\n\nFor all subsequent nested entities (`AnalysisSession`, `MammogramInput`, `ClinicalInput`, `PathologyInput`, `FeatureImportanceDetail`, `DiagnosticReport`), the `ownerId` (copied from `Patient.externalUserId`) is denormalized and stored directly within each document. Additionally, relevant parent IDs (`patientId`, `analysisSessionId`) are also denormalized into their child documents. This crucial denormalization strategy eliminates the need for `get()` calls in Firestore Security Rules to traverse parent documents for authorization checks. For example, to check access for a `DiagnosticReport`, rules can simply verify `request.auth.uid == resource.data.ownerId`.\n\nThis structure strongly supports **QAPs (Rules are not Filters)**. By tightly coupling data to the user's path and denormalizing ownership, `list` operations (e.g., retrieving all `AnalysisSession`s for a `Patient`) are inherently secure. A query to `/users/{userId}/patients/{patientId}/analysisSessions` will only return documents for which `request.auth.uid` matches the `userId` in the path (and `resource.data.ownerId` if further rule checks are applied on the document itself). This prevents unauthorized data from being fetched and then filtered by rules, ensuring efficient and secure data access.\n\n**Structural Segregation** is achieved as all data within this user-centric hierarchy shares the same security posture: it is private to the owning user. There are no mixed public/private documents within the same collections. The use of consistent naming (`{userId}`, `{patientId}`) and explicit field definitions further enhances **Data Clarity and Predictability**."
+  }
+}
